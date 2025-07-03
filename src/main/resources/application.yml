@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: PhotoGallery
+  thymeleaf:
+    cache: false
+server:
+  port: 5050
+  servlet:
+    context-path: /
+logging:
+  level:
+    com:
+      kevo:
+        PhotoGallery:
+          PhotoGalleryApplication: DEBUG
+    org:
+      springframework:
+        web: DEBUG
