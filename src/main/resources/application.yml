@@ -1,10 +1,12 @@
 spring:
   application:
     name: PhotoGallery
+  config:
+    import: file:.env[.properties]
   thymeleaf:
     cache: false
 server:
-  port: 5050
+  port: ${PORT}
   servlet:
     context-path: /
 logging:
