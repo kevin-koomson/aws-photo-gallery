@@ -1,0 +1,30 @@
+version: 0.2
+
+env:
+  variables:
+    IMAGE_TAG: latest
+    REPO_NAME: springboot-gallery-app
+    REGION: eu-central-1
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region $REGION --no-include-email)
+
+  build:
+    commands:
+      - echo Building the Docker image...
+      - docker build -t $REPO_NAME .
+      - docker tag $REPO_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo Pushing the Docker image to ECR...
+      - docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:$IMAGE_TAG
+      - echo Build completed on `date`
+
+artifacts:
+  files:
+    - '**/*'
