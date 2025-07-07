@@ -1,8 +1,8 @@
 package com.kevo.PhotoGallery.controller;
 
+import com.kevo.PhotoGallery.service.PaginatedImages;
 import com.kevo.PhotoGallery.service.S3Service;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -18,38 +18,63 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-
+@RequiredArgsConstructor
 @Controller
 @RequestMapping("/gallery")
 public class GalleryController {
 
-    @Autowired
-    private S3Service s3Service;
+    private final S3Service s3Service;
 
     private static final List<String> ALLOWED_PHOTO_TYPES = Arrays.asList(
             "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp", "image/webp"
     );
 
     /**
-     * Display the gallery dashboard
+     * Display the gallery dashboard with pagination
      */
     @GetMapping
-    public String gallery(Model model) {
+    public String gallery(@RequestParam(defaultValue = "0") int page,
+                          @RequestParam(defaultValue = "12") int size,
+                          Model model) {
         try {
-            List<String> files = s3Service.listFiles();
-            // Filter only image files
-            List<String> imageFiles = files.stream()
-                    .filter(this::isImageFile)
-                    .toList();
+            // Get paginated images
+            PaginatedImages paginatedImages = s3Service.listImagesPaginated(page, size);
 
-            model.addAttribute("images", imageFiles);
-            model.addAttribute("totalImages", imageFiles.size());
+            model.addAttribute("images", paginatedImages.getImages());
+            model.addAttribute("totalImages", paginatedImages.getTotalImages());
+            model.addAttribute("currentPage", page);
+            model.addAttribute("pageSize", size);
+            model.addAttribute("totalPages", paginatedImages.getTotalPages());
+            model.addAttribute("hasNext", paginatedImages.isHasNext());
+            model.addAttribute("hasPrevious", paginatedImages.isHasPrevious());
+
+            // For pagination navigation
+            model.addAttribute("pageNumbers", generatePageNumbers(page, paginatedImages.getTotalPages()));
+
         } catch (Exception e) {
             model.addAttribute("error", "Failed to load gallery: " + e.getMessage());
             model.addAttribute("images", List.of());
             model.addAttribute("totalImages", 0);
+            model.addAttribute("currentPage", 0);
+            model.addAttribute("totalPages", 0);
+            model.addAttribute("hasNext", false);
+            model.addAttribute("hasPrevious", false);
         }
         return "gallery";
+    }
+
+    /**
+     * Generate page numbers for pagination display
+     */
+    private List<Integer> generatePageNumbers(int currentPage, int totalPages) {
+        List<Integer> pageNumbers = new java.util.ArrayList<>();
+        int startPage = Math.max(0, currentPage - 2);
+        int endPage = Math.min(totalPages - 1, currentPage + 2);
+
+        for (int i = startPage; i <= endPage; i++) {
+            pageNumbers.add(i);
+        }
+        return pageNumbers;
     }
 
     /**
@@ -94,7 +119,7 @@ public class GalleryController {
     @GetMapping("/image/{fileName}")
     public ResponseEntity<InputStreamResource> viewImage(@PathVariable String fileName) {
         try {
-            if (!s3Service.fileExists(fileName)) {
+            if (s3Service.fileDoesNotExist(fileName)) {
                 return ResponseEntity.notFound().build();
             }
 
@@ -121,7 +146,7 @@ public class GalleryController {
     public String deleteImage(@PathVariable String fileName,
                               RedirectAttributes redirectAttributes) {
         try {
-            if (!s3Service.fileExists(fileName)) {
+            if (s3Service.fileDoesNotExist(fileName)) {
                 redirectAttributes.addFlashAttribute("error", "Image not found");
                 return "redirect:/gallery";
             }

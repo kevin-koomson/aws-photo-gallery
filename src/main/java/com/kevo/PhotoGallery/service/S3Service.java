@@ -1,7 +1,6 @@
 package com.kevo.PhotoGallery.service;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,10 +14,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class S3Service {
 
-    @Autowired
-    private S3Client s3Client;
+    private final S3Client s3Client;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -103,9 +102,48 @@ public class S3Service {
     }
 
     /**
+     * List images with pagination
+     */
+    public PaginatedImages listImagesPaginated(int page, int size) {
+        try {
+            // Get all objects first (S3 doesn't support true pagination, so we implement it manually)
+            List<String> allFiles = listFiles();
+
+            // Filter only image files
+            List<String> imageFiles = allFiles.stream()
+                    .filter(this::isImageFile)
+                    .sorted() // Sort for consistent ordering
+                    .collect(Collectors.toList());
+
+            int totalImages = imageFiles.size();
+            int totalPages = (int) Math.ceil((double) totalImages / size);
+
+            // Calculate pagination boundaries
+            int startIndex = page * size;
+            int endIndex = Math.min(startIndex + size, totalImages);
+
+            // Get the subset for current page
+            List<String> pageImages = imageFiles.subList(startIndex, endIndex);
+
+            return new PaginatedImages(
+                    pageImages,
+                    totalImages,
+                    page,
+                    size,
+                    totalPages,
+                    page < totalPages - 1, // hasNext
+                    page > 0 // hasPrevious
+            );
+
+        } catch (S3Exception e) {
+            throw new RuntimeException("Failed to list files from S3: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Check if file exists in S3 bucket
      */
-    public boolean fileExists(String fileName) {
+    public boolean fileDoesNotExist(String fileName) {
         try {
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
                     .bucket(bucketName)
@@ -113,11 +151,25 @@ public class S3Service {
                     .build();
 
             s3Client.headObject(headObjectRequest);
-            return true;
-        } catch (NoSuchKeyException e) {
             return false;
+        } catch (NoSuchKeyException e) {
+            return true;
         } catch (S3Exception e) {
             throw new RuntimeException("Failed to check if file exists in S3: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * Check if filename suggests it's an image file
+     */
+    private boolean isImageFile(String fileName) {
+        String lowerFileName = fileName.toLowerCase();
+        return lowerFileName.endsWith(".jpg") ||
+                lowerFileName.endsWith(".jpeg") ||
+                lowerFileName.endsWith(".png") ||
+                lowerFileName.endsWith(".gif") ||
+                lowerFileName.endsWith(".bmp") ||
+                lowerFileName.endsWith(".webp");
+    }
+
 }

@@ -167,6 +167,33 @@
             margin: 1rem auto;
         }
 
+        .pagination .page-link {
+            border-radius: 8px;
+            margin: 0 2px;
+            border: 1px solid #dee2e6;
+            color: #667eea;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .pagination .page-link:hover {
+            background-color: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .pagination .page-item.disabled .page-link {
+            color: #6c757d;
+            background-color: #fff;
+            border-color: #dee2e6;
+        }
+
         .file-input {
             display: none;
         }
@@ -243,13 +270,19 @@
             <!-- Stats Section -->
             <div class="stats-section">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="stat-item">
                             <div class="stat-number" th:text="${totalImages}">0</div>
                             <div class="stat-label">Total Images</div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <div class="stat-item">
+                            <div class="stat-number" th:text="${totalPages}">0</div>
+                            <div class="stat-label">Total Pages</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
                         <div class="stat-item">
                             <div class="stat-number">
                                 <i class="fas fa-cloud text-primary"></i>
@@ -257,7 +290,7 @@
                             <div class="stat-label">Stored in S3</div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="stat-item">
                             <div class="stat-number">
                                 <i class="fas fa-shield-alt text-success"></i>
@@ -265,6 +298,30 @@
                             <div class="stat-label">Secure Storage</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Page Size Selector -->
+            <div class="d-flex justify-content-between align-items-center mb-3" th:if="${totalImages > 0}">
+                <div>
+                        <span class="text-muted">
+                            Showing
+                            <span th:text="${currentPage * pageSize + 1}">1</span>
+                            -
+                            <span th:text="${T(java.lang.Math).min((currentPage + 1) * pageSize, totalImages)}">12</span>
+                            of
+                            <span th:text="${totalImages}">0</span>
+                            images
+                        </span>
+                </div>
+                <div>
+                    <label for="pageSize" class="form-label me-2">Images per page:</label>
+                    <select id="pageSize" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="changePageSize(this.value)">
+                        <option value="6" th:selected="${pageSize == 6}">6</option>
+                        <option value="12" th:selected="${pageSize == 12}">12</option>
+                        <option value="24" th:selected="${pageSize == 24}">24</option>
+                        <option value="48" th:selected="${pageSize == 48}">48</option>
+                    </select>
                 </div>
             </div>
 
@@ -303,6 +360,60 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Pagination Controls -->
+            <nav aria-label="Gallery pagination" th:if="${totalPages > 1}">
+                <div class="d-flex justify-content-center mt-4">
+                    <ul class="pagination pagination-lg">
+                        <!-- Previous Button -->
+                        <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="${hasPrevious} ? @{/gallery(page=${currentPage - 1}, size=${pageSize})} : '#'"
+                               th:aria-disabled="${!hasPrevious}">
+                                <i class="fas fa-chevron-left me-1"></i>Previous
+                            </a>
+                        </li>
+
+                        <!-- First Page -->
+                        <li class="page-item" th:if="${currentPage > 2}">
+                            <a class="page-link" th:href="@{/gallery(page=0, size=${pageSize})}">1</a>
+                        </li>
+
+                        <!-- Ellipsis -->
+                        <li class="page-item disabled" th:if="${currentPage > 3}">
+                            <span class="page-link">...</span>
+                        </li>
+
+                        <!-- Page Numbers -->
+                        <li class="page-item"
+                            th:each="pageNum : ${pageNumbers}"
+                            th:classappend="${pageNum == currentPage} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/gallery(page=${pageNum}, size=${pageSize})}"
+                               th:text="${pageNum + 1}">1</a>
+                        </li>
+
+                        <!-- Ellipsis -->
+                        <li class="page-item disabled" th:if="${currentPage < totalPages - 4}">
+                            <span class="page-link">...</span>
+                        </li>
+
+                        <!-- Last Page -->
+                        <li class="page-item" th:if="${currentPage < totalPages - 3}">
+                            <a class="page-link" th:href="@{/gallery(page=${totalPages - 1}, size=${pageSize})}" th:text="${totalPages}">Last</a>
+                        </li>
+
+                        <!-- Next Button -->
+                        <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="${hasNext} ? @{/gallery(page=${currentPage + 1}, size=${pageSize})} : '#'"
+                               th:aria-disabled="${!hasNext}">
+                                Next<i class="fas fa-chevron-right ms-1"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
 
             <!-- Empty State -->
             <div th:if="${images.size() == 0}" class="empty-state">
@@ -394,6 +505,14 @@
         const form = document.getElementById('deleteForm');
         form.action = '/gallery/delete/' + filename;
         modal.show();
+    }
+
+    // Change page size functionality
+    function changePageSize(newSize) {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('size', newSize);
+        urlParams.set('page', '0'); // Reset to first page
+        window.location.search = urlParams.toString();
     }
 
     // Auto-hide alerts
