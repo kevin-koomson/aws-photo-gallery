@@ -12,10 +12,12 @@
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+
         .dashboard-container {
             padding: 2rem 0;
             min-height: 100vh;
         }
+
         .dashboard-header {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
@@ -25,21 +27,25 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+
         .welcome-text {
             color: #2c3e50;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
+
         .subtitle {
             color: #7f8c8d;
             margin-bottom: 0;
         }
+
         .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
             margin-top: 2rem;
         }
+
         .feature-card {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
@@ -51,29 +57,42 @@
             text-decoration: none;
             color: inherit;
         }
+
         .feature-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
             text-decoration: none;
             color: inherit;
         }
+
         .feature-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
         }
-        .stress-test { color: #e74c3c; }
-        .photo-gallery { color: #3498db; }
-        .name-change { color: #2ecc71; }
+
+        .stress-test {
+            color: #e74c3c;
+        }
+
+        .photo-gallery {
+            color: #3498db;
+        }
+
+        .name-change {
+            color: #2ecc71;
+        }
 
         .feature-title {
             color: #2c3e50;
             font-weight: 600;
             margin-bottom: 1rem;
         }
+
         .feature-description {
             color: #7f8c8d;
             margin-bottom: 1.5rem;
         }
+
         .feature-status {
             background: #f8f9fa;
             border-radius: 10px;
@@ -82,6 +101,7 @@
             color: #6c757d;
             border: 1px solid #dee2e6;
         }
+
         .logout-btn {
             background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
             border: none;
@@ -92,6 +112,7 @@
             transition: all 0.3s ease;
             text-decoration: none;
         }
+
         .logout-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
@@ -119,35 +140,42 @@
     </div>
 
     <div class="features-grid">
-        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert" style="grid-column: 1 / -1; background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 15px;">
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert"
+             style="grid-column: 1 / -1; background: rgba(40, 167, 69, 0.1); border: 1px solid #28a745; border-radius: 15px;">
             <i class="fas fa-check-circle me-2"></i>
             <span th:text="${success}"></span>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
 
-        <div class="feature-card" role="button" tabindex="0">
-            <div class="text-center">
-                <i class="fas fa-tachometer-alt feature-icon stress-test"></i>
-                <h3 class="feature-title">Stress Test Control Panel</h3>
-                <p class="feature-description">Monitor and control system stress tests with real-time metrics and performance analysis.</p>
-                <div class="feature-status">
-                    <i class="fas fa-clock me-1"></i>
-                    Coming Soon
+        <a href="/stress-test" class="feature-card" style="text-decoration: none; color: inherit;">
+            <div class="feature-card" role="button" tabindex="0">
+                <div class="text-center">
+                    <i class="fas fa-tachometer-alt feature-icon stress-test"></i>
+                    <h3 class="feature-title">Stress Test Control Panel</h3>
+                    <p class="feature-description">Monitor and control system stress tests with real-time metrics and
+                        performance analysis.</p>
+                    <div class="feature-status" style="background: #d4edda; border-color: #c3e6cb; color: #155724;">
+                        <i class="fas fa-check me-1"></i>
+                        Available
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
 
-        <div class="feature-card" role="button" tabindex="0">
-            <div class="text-center">
-                <i class="fas fa-images feature-icon photo-gallery"></i>
-                <h3 class="feature-title">Photo Gallery</h3>
-                <p class="feature-description">Browse, upload, and manage your photo collection with an intuitive gallery interface.</p>
-                <div class="feature-status">
-                    <i class="fas fa-clock me-1"></i>
-                    Coming Soon
+        <a href="/gallery" class="feature-card" style="text-decoration: none; color: inherit;">
+            <div class="feature-card" role="button" tabindex="0">
+                <div class="text-center">
+                    <i class="fas fa-images feature-icon photo-gallery"></i>
+                    <h3 class="feature-title">Photo Gallery</h3>
+                    <p class="feature-description">Browse, upload, and manage your photo collection with an intuitive
+                        gallery interface.</p>
+                    <div class="feature-status" style="background: #d4edda; border-color: #c3e6cb; color: #155724;">
+                        <i class="fas fa-check me-1"></i>
+                        Available
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
 
         <a href="/name-change" class="feature-card" style="text-decoration: none; color: inherit;">
             <div class="text-center">
