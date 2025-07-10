@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy source files
 COPY . .
 
-# Build the JAR (you can switch to gradlew if using Gradle)
-RUN ./mvnw clean package -DskipTests
+# Make Maven wrapper executable and build the JAR
+RUN chmod +x ./mvnw && ./mvnw clean package -DskipTests
 
 # Use a smaller JRE base image for runtime.
 FROM eclipse-temurin:21-jre-alpine
