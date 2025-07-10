@@ -1,48 +1,30 @@
-# Multi-stage build for Spring Boot application
-FROM maven:3.9.6-eclipse-temurin-21 AS build
+# Use a base JDK image
+FROM eclipse-temurin:17-jdk-alpine as builder
 
-# Set working directory
+# Set workdir
 WORKDIR /app
 
-# Copy pom.xml first to leverage Docker layer caching
-COPY pom.xml .
+# Copy source files
+COPY . .
 
-# Download dependencies (this layer will be cached if pom.xml doesn't change)
-RUN mvn dependency:go-offline -B
+# Build the JAR (you can switch to gradlew if using Gradle)
+RUN ./mvnw clean package -DskipTests
 
-# Copy source code
-COPY src ./src
+# Use a smaller JRE base image for runtime
+FROM eclipse-temurin:17-jre-alpine
 
-# Build the application
-RUN mvn clean package -DskipTests
-
-# Runtime stage
-FROM eclipse-temurin:21-jre-jammy
-
-# Create non-root user for security
-RUN groupadd -r spring && useradd -r -g spring spring
+# Create non-root user
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
 
 # Set working directory
-WORKDIR /app
+WORKDIR /home/spring
 
-# Copy the built JAR from build stage
-COPY --from=build /app/target/*.jar app.jar
+# Copy built jar
+COPY --from=builder /app/target/*.jar app.jar
 
-# Change ownership to spring user
-RUN chown spring:spring app.jar
-
-# Switch to non-root user
-USER spring
-
-# Expose port 8080
+# Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
-
-# Set JVM options for containerized environment
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
-
-# Run the application
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# Run app
+ENTRYPOINT ["java", "-jar", "app.jar"]
