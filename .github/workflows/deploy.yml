@@ -1,15 +1,18 @@
-name: Build Spring Boot Docker Image and Upload to S3
+name: Build Spring Boot Docker Image and Push to ECR
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
 env:
   AWS_REGION: eu-central-1
-  S3_BUCKET: week5-cfn-templates
+  ECR_REPOSITORY: springboot-gallery-app
   IMAGE_NAME: springboot-app
 
 jobs:
-  build-and-upload:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,33 +35,6 @@ jobs:
       - name: Build application
         run: mvn clean package -DskipTests
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Generate image tag
-        id: image-tag
-        run: |
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
-          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "FULL_IMAGE_NAME=${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64
-          tags: |
-            ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
-            ${{ env.IMAGE_NAME }}:latest
-          outputs: type=docker,dest=/tmp/springboot-image.tar
-
-      - name: Compress Docker image
-        run: |
-          gzip /tmp/springboot-image.tar
-          ls -lh /tmp/springboot-image.tar.gz
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -66,56 +42,66 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload Docker image to S3
-        run: |
-          aws s3 cp /tmp/springboot-image.tar.gz \
-            s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz \
-            --metadata "commit-sha=$GITHUB_SHA,build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ),branch=$GITHUB_REF_NAME"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Upload latest image to S3
-        if: github.ref == 'refs/heads/main'
+      - name: Generate image tag
+        id: image-tag
         run: |
-          aws s3 cp /tmp/springboot-image.tar.gz \
-            s3://${{ env.S3_BUCKET }}/docker-images/${{ env.IMAGE_NAME }}-latest.tar.gz \
-            --metadata "commit-sha=$GITHUB_SHA,build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ),branch=$GITHUB_REF_NAME"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
+          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          FULL_IMAGE_NAME="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE_NAME="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "FULL_IMAGE_NAME=${FULL_IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "LATEST_IMAGE_NAME=${LATEST_IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "ECR_REGISTRY=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} .
+          docker tag ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
+          docker push ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
 
       - name: Create deployment manifest
         run: |
           cat > deployment-manifest.json << EOF
           {
-            "image_name": "${{ env.IMAGE_NAME }}",
+            "image_name": "${{ env.ECR_REPOSITORY }}",
             "image_tag": "${{ steps.image-tag.outputs.IMAGE_TAG }}",
             "full_image_name": "${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}",
+            "latest_image_name": "${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}",
+            "ecr_registry": "${{ steps.image-tag.outputs.ECR_REGISTRY }}",
             "commit_sha": "${{ github.sha }}",
             "branch": "${{ github.ref_name }}",
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "s3_path": "s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz",
             "workflow_run_id": "${{ github.run_id }}",
             "workflow_run_number": "${{ github.run_number }}"
           }
           EOF
 
-      - name: Upload deployment manifest to S3
-        run: |
-          aws s3 cp deployment-manifest.json \
-            s3://${{ env.S3_BUCKET }}/manifests/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}-manifest.json
-
-      - name: Upload latest manifest to S3
-        if: github.ref == 'refs/heads/main'
-        run: |
-          aws s3 cp deployment-manifest.json \
-            s3://${{ env.S3_BUCKET }}/manifests/${{ env.IMAGE_NAME }}-latest-manifest.json
-
-      - name: Clean up local files
-        run: |
-          rm -f /tmp/springboot-image.tar.gz
-          rm -f deployment-manifest.json
-
       - name: Output summary
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Image Name:** ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **S3 Location:** s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest Tag:** ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **ECR Registry:** ${{ steps.image-tag.outputs.ECR_REGISTRY }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Build Date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## Docker Pull Commands" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Pull specific version" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
