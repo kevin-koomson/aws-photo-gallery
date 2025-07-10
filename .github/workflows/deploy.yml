@@ -1,0 +1,127 @@
+name: Build Spring Boot Docker Image and Upload to S3
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: eu-central-1
+  S3_BUCKET: week5-cfn-templates
+  IMAGE_NAME: springboot-app
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run tests
+        run: mvn clean test
+
+      - name: Build application
+        run: mvn clean package -DskipTests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image tag
+        id: image-tag
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
+          IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "FULL_IMAGE_NAME=${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
+            ${{ env.IMAGE_NAME }}:latest
+          outputs: type=docker,dest=/tmp/springboot-image.tar
+
+      - name: Compress Docker image
+        run: |
+          gzip /tmp/springboot-image.tar
+          ls -lh /tmp/springboot-image.tar.gz
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload Docker image to S3
+        run: |
+          aws s3 cp /tmp/springboot-image.tar.gz \
+            s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz \
+            --metadata "commit-sha=$GITHUB_SHA,build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ),branch=$GITHUB_REF_NAME"
+
+      - name: Upload latest image to S3
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws s3 cp /tmp/springboot-image.tar.gz \
+            s3://${{ env.S3_BUCKET }}/docker-images/${{ env.IMAGE_NAME }}-latest.tar.gz \
+            --metadata "commit-sha=$GITHUB_SHA,build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ),branch=$GITHUB_REF_NAME"
+
+      - name: Create deployment manifest
+        run: |
+          cat > deployment-manifest.json << EOF
+          {
+            "image_name": "${{ env.IMAGE_NAME }}",
+            "image_tag": "${{ steps.image-tag.outputs.IMAGE_TAG }}",
+            "full_image_name": "${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}",
+            "commit_sha": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "s3_path": "s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_number": "${{ github.run_number }}"
+          }
+          EOF
+
+      - name: Upload deployment manifest to S3
+        run: |
+          aws s3 cp deployment-manifest.json \
+            s3://${{ env.S3_BUCKET }}/manifests/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}-manifest.json
+
+      - name: Upload latest manifest to S3
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws s3 cp deployment-manifest.json \
+            s3://${{ env.S3_BUCKET }}/manifests/${{ env.IMAGE_NAME }}-latest-manifest.json
+
+      - name: Clean up local files
+        run: |
+          rm -f /tmp/springboot-image.tar.gz
+          rm -f deployment-manifest.json
+
+      - name: Output summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Name:** ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **S3 Location:** s3://${{ env.S3_BUCKET }}/docker-images/${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
