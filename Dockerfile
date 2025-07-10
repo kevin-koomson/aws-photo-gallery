@@ -10,7 +10,7 @@ COPY . .
 # Build the JAR (you can switch to gradlew if using Gradle)
 RUN ./mvnw clean package -DskipTests
 
-# Use a smaller JRE base image for runtime
+# Use a smaller JRE base image for runtime.
 FROM eclipse-temurin:17-jre-alpine
 
 # Create non-root user
