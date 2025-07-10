@@ -1,5 +1,5 @@
 # Use a base JDK image
-FROM eclipse-temurin:17-jdk-alpine as builder
+FROM eclipse-temurin:21-jdk-alpine as builder
 
 # Set workdir
 WORKDIR /app
@@ -10,8 +10,8 @@ COPY . .
 # Build the JAR (you can switch to gradlew if using Gradle)
 RUN ./mvnw clean package -DskipTests
 
-# Use a smaller JRE base image for runtime
-FROM eclipse-temurin:17-jre-alpine
+# Use a smaller JRE base image for runtime.
+FROM eclipse-temurin:21-jre-alpine
 
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
