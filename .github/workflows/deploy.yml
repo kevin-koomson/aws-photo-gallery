@@ -2,10 +2,7 @@ name: Build Spring Boot Docker Image and Upload to S3
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
-
 env:
   AWS_REGION: eu-central-1
   S3_BUCKET: week5-cfn-templates
@@ -51,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
             ${{ env.IMAGE_NAME }}:latest
