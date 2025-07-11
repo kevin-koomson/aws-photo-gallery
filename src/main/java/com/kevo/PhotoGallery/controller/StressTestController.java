@@ -9,6 +9,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,7 @@ public class StressTestController {
             Runtime.getRuntime().availableProcessors()
     );
 
+    private final int instanceId = (new Random()).nextInt(100) + 1;
     private final AtomicBoolean isStressTestRunning = new AtomicBoolean(false);
     private final AtomicInteger targetCpuUsage = new AtomicInteger(50);
     private volatile ScheduledExecutorService stressTestExecutor;
@@ -199,7 +201,7 @@ public class StressTestController {
 
     private void populateModelWithSystemInfo(Model model) {
         model.addAttribute("systemStatus", "ACTIVE");
-        model.addAttribute("instanceId", "single-instance");
+        model.addAttribute("instanceId", instanceId);
         model.addAttribute("availableCores", Runtime.getRuntime().availableProcessors());
         model.addAttribute("currentCpuUsage", getCurrentCpuUsage() + "%");
         model.addAttribute("stressTestStatus", isStressTestRunning.get() ? "RUNNING" : "IDLE");
