@@ -3,8 +3,6 @@ spring:
     name: PhotoGallery
   thymeleaf:
     cache: false
-server:
-  port: ${PORT}
   servlet:
     context-path: /
 logging:
