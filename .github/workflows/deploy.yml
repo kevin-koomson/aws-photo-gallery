@@ -81,9 +81,10 @@ jobs:
       - name: Register new ECS task definition
         run: |
           sed "s|<IMAGE_URI>|${{ secrets.ECR_URI }}:${{ steps.image-tag.outputs.IMAGE_TAG }}|g" taskdef.json > taskdef-rendered.json
-            aws ecs register-task-definition --cli-input-json file://taskdef-rendered.json > taskdef-out.json
-            TASK_DEF_ARN=$(jq -r '.taskDefinition.taskDefinitionArn' taskdef-out.json)
-            sed "s|<TASK_DEFINITION_ARN>|$TASK_DEF_ARN|g" appspec.yml > appspec.yml
+          aws ecs register-task-definition --cli-input-json file://taskdef-rendered.json > taskdef-out.json
+          TASK_DEF_ARN=$(jq -r '.taskDefinition.taskDefinitionArn' taskdef-out.json)
+          sed "s|<TASK_DEFINITION_ARN>|$TASK_DEF_ARN|g" appspec.yml > appspec-rendered.yml
+          mv appspec-rendered.yml appspec.yml
 
       - name: Package and upload pipeline artifacts
         run: |
