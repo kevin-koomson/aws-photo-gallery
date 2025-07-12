@@ -87,7 +87,7 @@ jobs:
 
       - name: Package and upload pipeline artifacts
         run: |
-          zip pipeline-configs.zip appspec-rendered.json imagedefinitions.json
+          zip pipeline-configs.zip appspec-rendered.yml imagedefinitions.json
           aws s3 cp pipeline-configs.zip s3://${{ env.INFRA_S3_BUCKET }}/pipeline-configs.zip
 
       - name: Create deployment manifest
