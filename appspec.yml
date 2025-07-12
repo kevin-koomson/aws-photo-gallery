@@ -3,7 +3,7 @@ Resources:
   - TargetService:
       Type: AWS::ECS::Service
       Properties:
-        TaskDefinition: "REPLACED_DURING_DEPLOYMENT"
+        TaskDefinition: "<TASK_DEFINITION_ARN>"
         LoadBalancerInfo:
           ContainerName: "springboot-container"
           ContainerPort: 8080
