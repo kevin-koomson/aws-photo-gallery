@@ -12,8 +12,8 @@
       "image": "<IMAGE_URI>",
       "portMappings": [
         {
-          "containerPort": 8082,
-          "hostPort": 8082
+          "containerPort": 8080,
+          "hostPort": 8080
         }
       ],
       "essential": true,
