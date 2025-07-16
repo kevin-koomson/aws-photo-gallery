@@ -61,16 +61,6 @@ jobs:
           echo "LATEST_IMAGE_NAME=${LATEST_IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "ECR_REGISTRY=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
 
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} .
-          docker tag ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
-
-      - name: Push Docker image to ECR
-        run: |
-          docker push ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
-          docker push ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
-
       - name: Replace image URI in imagedefinitions.json
         run: |
           echo '[{"name":"springboot-container","imageUri":"${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}"}]' > imagedefinitions.json
@@ -81,14 +71,25 @@ jobs:
       - name: Register new ECS task definition
         run: |
           sed "s|<IMAGE_URI>|${{ secrets.ECR_URI }}:${{ steps.image-tag.outputs.IMAGE_TAG }}|g" taskdef.json > taskdef-rendered.json
-            aws ecs register-task-definition --cli-input-json file://taskdef-rendered.json > taskdef-out.json
-            TASK_DEF_ARN=$(jq -r '.taskDefinition.taskDefinitionArn' taskdef-out.json)
-            sed "s|<TASK_DEFINITION_ARN>|$TASK_DEF_ARN|g" appspec.yml > appspec-rendered.yml
+          aws ecs register-task-definition --cli-input-json file://taskdef-rendered.json > taskdef-out.json
+          TASK_DEF_ARN=$(jq -r '.taskDefinition.taskDefinitionArn' taskdef-out.json)
+          sed "s|<TASK_DEFINITION_ARN>|$TASK_DEF_ARN|g" appspec.yml > appspec-rendered.yml
+          mv appspec-rendered.yml appspec.yml
 
       - name: Package and upload pipeline artifacts
         run: |
-          zip pipeline-configs.zip appspec-rendered.json imagedefinitions.json
+          zip pipeline-configs.zip appspec.yml imagedefinitions.json
           aws s3 cp pipeline-configs.zip s3://${{ env.INFRA_S3_BUCKET }}/pipeline-configs.zip
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} .
+          docker tag ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }} ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ steps.image-tag.outputs.FULL_IMAGE_NAME }}
+          docker push ${{ steps.image-tag.outputs.LATEST_IMAGE_NAME }}
 
       - name: Create deployment manifest
         run: |
